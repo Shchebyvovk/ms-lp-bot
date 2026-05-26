@@ -54,23 +54,57 @@ adapter.onTurnError = async (context, error) => {
 
 // ── Transfer to Agent ─────────────────────────────────────────────────────────
 async function transferToAgent(context, conversationId) {
-  console.log('[TRANSFER] Sending handoff.initiate event');
+  console.log('[TRANSFER] Initiating escalation to skill ID: 10109514655');
   
   transferredConversations.add(conversationId);
   
   // Спочатку текстове повідомлення
   await context.sendActivity('Зʼєдную вас з оператором. Зачекайте, будь ласка...');
   
-  // Потім handoff event
+  // Формат 1: message з action в channelData
+  await context.sendActivity({
+    type: 'message',
+    text: '',
+    channelData: {
+      action: {
+        name: 'TRANSFER',
+        parameters: {
+          skill: 'agent-after-ms-bot'
+        }
+      }
+    }
+  });
+  
+  // Формат 2: event handoff.initiate
   await context.sendActivity({
     type: 'event',
     name: 'handoff.initiate',
     value: {
-      skill: 'agent-after-ms-bot'
+      skill: 'agent-after-ms-bot',
+      context: {
+        message: 'User requested human agent'
+      }
     }
   });
   
-  console.log('[TRANSFER] Handoff event sent');
+  // Формат 3: з skillId
+  await context.sendActivity({
+    type: 'message',
+    channelData: {
+      metadata: [
+        {
+          type: 'ActionReason',
+          reason: 'escalate'
+        },
+        {
+          type: 'SkillId',
+          skillId: '10109514655'
+        }
+      ]
+    }
+  });
+  
+  console.log('[TRANSFER] All escalation formats sent');
 }
 
 // ── Обробник повідомлень ──────────────────────────────────────────────────────
@@ -78,9 +112,9 @@ async function handleTurn(context) {
   const activity = context.activity;
   const conversationId = activity.conversation?.id || 'default';
 
-  // Якщо розмова передана — ігноруємо всі повідомлення
+  // Якщо розмова передана — ігноруємо
   if (transferredConversations.has(conversationId)) {
-    console.log(`[IGNORED] Message from transferred conversation: ${conversationId}`);
+    console.log(`[IGNORED] Transferred conversation: ${conversationId}`);
     return;
   }
 
@@ -103,7 +137,7 @@ async function handleTurn(context) {
 
     console.log(`[MSG] conv=${conversationId} text="${userText}"`);
 
-    // Перевіряємо чи це команда на трансфер
+    // Команда трансферу
     const lowerText = userText.toLowerCase();
     if (
       lowerText === 'оператор' ||
@@ -116,7 +150,7 @@ async function handleTurn(context) {
       return;
     }
 
-    // Інакше питаємо OpenAI
+    // OpenAI Assistant
     const reply = await askAssistant(conversationId, userText);
     
     if (reply) {
