@@ -5,13 +5,9 @@ const OpenAI = require('openai');
 
 // ── OpenAI ────────────────────────────────────────────────────────────────────
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// Зберігаємо threadId для кожної розмови
-// conversationId (LP/Bot) → OpenAI thread_id
 const threads = new Map();
 
 async function askAssistant(conversationId, userMessage) {
-  // Якщо треду нема — створюємо новий
   if (!threads.has(conversationId)) {
     const thread = await openai.beta.threads.create();
     threads.set(conversationId, thread.id);
@@ -20,30 +16,27 @@ async function askAssistant(conversationId, userMessage) {
 
   const threadId = threads.get(conversationId);
 
-  // Додаємо повідомлення юзера в тред
   await openai.beta.threads.messages.create(threadId, {
     role: 'user',
     content: userMessage,
   });
 
-  // Запускаємо асистента
   const run = await openai.beta.threads.runs.createAndPoll(threadId, {
     assistant_id: process.env.OPENAI_ASSISTANT_ID,
   });
 
   if (run.status !== 'completed') {
     console.error('[OpenAI] Run status:', run.status);
-    return 'Вибачте, сталася помилка. Спробуйте ще раз.';
+    return null;
   }
 
-  // Отримуємо останню відповідь асистента
   const messages = await openai.beta.threads.messages.list(threadId, {
     order: 'desc',
     limit: 1,
   });
 
   const reply = messages.data[0]?.content[0]?.text?.value;
-  return reply || 'Немає відповіді від асистента.';
+  return reply || null;
 }
 
 // ── Bot Framework Adapter ─────────────────────────────────────────────────────
@@ -55,35 +48,70 @@ const adapter = new BotFrameworkAdapter({
 
 adapter.onTurnError = async (context, error) => {
   console.error('[onTurnError]', error);
-  await context.sendActivity('Сталася помилка. Спробуйте ще раз.');
+  await context.sendActivity('Вибачте, сталася помилка.');
 };
+
+// ── Transfer to Agent ─────────────────────────────────────────────────────────
+async function transferToAgent(context) {
+  console.log('[TRANSFER] Transferring to skill: agent-after-ms-bot');
+  
+  // Надсилаємо спеціальний event для LivePerson
+  await context.sendActivity({
+    type: 'event',
+    name: 'Transfer',
+    value: {
+      skill: 'agent-after-ms-bot'
+    }
+  });
+
+  await context.sendActivity('Зʼєдную вас з оператором. Зачекайте, будь ласка...');
+}
 
 // ── Обробник повідомлень ──────────────────────────────────────────────────────
 async function handleTurn(context) {
   const activity = context.activity;
 
-  // Старт розмови — привітання
+  // Старт розмови
   if (
     activity.type === ActivityTypes.Event &&
     activity.name === 'CONVERSATION_START'
   ) {
-    await context.sendActivity('Привіт! Чим можу допомогти?');
+    await context.sendActivity(
+      'Привіт! Я віртуальний асистент. Чим можу допомогти?\n\n' +
+      'Якщо потрібен оператор, напишіть: **оператор**'
+    );
     return;
   }
 
-  // Звичайне повідомлення від юзера
+  // Звичайне повідомлення
   if (activity.type === ActivityTypes.Message) {
     const userText = activity.text?.trim();
     if (!userText) return;
 
     const conversationId = activity.conversation?.id || 'default';
-
     console.log(`[MSG] conv=${conversationId} text="${userText}"`);
 
-    // Відправляємо до OpenAI Assistant і чекаємо відповідь
-    const reply = await askAssistant(conversationId, userText);
+    // Перевіряємо чи це команда на трансфер
+    const lowerText = userText.toLowerCase();
+    if (
+      lowerText === 'оператор' ||
+      lowerText === 'агент' ||
+      lowerText === 'людина' ||
+      lowerText === 'live agent' ||
+      lowerText === 'human'
+    ) {
+      await transferToAgent(context);
+      return;
+    }
 
-    await context.sendActivity(reply);
+    // Інакше питаємо OpenAI
+    const reply = await askAssistant(conversationId, userText);
+    
+    if (reply) {
+      await context.sendActivity(reply);
+    } else {
+      await context.sendActivity('Вибачте, не зміг сформувати відповідь. Спробуйте ще раз.');
+    }
   }
 }
 
