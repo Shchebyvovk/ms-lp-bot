@@ -54,25 +54,23 @@ adapter.onTurnError = async (context, error) => {
 
 // ── Transfer to Agent ─────────────────────────────────────────────────────────
 async function transferToAgent(context, conversationId) {
-  console.log('[TRANSFER] Transferring to skill ID: 10109514655');
+  console.log('[TRANSFER] Sending handoff.initiate event');
   
   transferredConversations.add(conversationId);
   
-  // Використовуємо skill ID замість назви
+  // Спочатку текстове повідомлення
+  await context.sendActivity('Зʼєдную вас з оператором. Зачекайте, будь ласка...');
+  
+  // Потім handoff event
   await context.sendActivity({
-    type: 'message',
-    text: 'Зʼєдную вас з оператором. Зачекайте, будь ласка...',
-    channelData: {
-      action: {
-        name: 'TRANSFER',
-        parameters: {
-          skillId: '10109514655'  // ← використовуємо ID
-        }
-      }
+    type: 'event',
+    name: 'handoff.initiate',
+    value: {
+      skill: 'agent-after-ms-bot'
     }
   });
   
-  console.log('[TRANSFER] Transfer with skillId sent');
+  console.log('[TRANSFER] Handoff event sent');
 }
 
 // ── Обробник повідомлень ──────────────────────────────────────────────────────
