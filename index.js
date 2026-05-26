@@ -6,7 +6,7 @@ const OpenAI = require('openai');
 // ── OpenAI ────────────────────────────────────────────────────────────────────
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const threads = new Map();
-const transferredConversations = new Set(); // ← НОВЕ: список переданих розмов
+const transferredConversations = new Set();
 
 async function askAssistant(conversationId, userMessage) {
   if (!threads.has(conversationId)) {
@@ -56,22 +56,23 @@ adapter.onTurnError = async (context, error) => {
 async function transferToAgent(context, conversationId) {
   console.log('[TRANSFER] Transferring to skill: agent-after-ms-bot');
   
-  // Позначаємо розмову як передану
   transferredConversations.add(conversationId);
   
-  await context.sendActivity('Зʼєдную вас з оператором. Зачекайте, будь ласка...');
-  
-  // Надсилаємо event трансферу
+  // LivePerson формат через channelData
   await context.sendActivity({
-    type: 'event',
-    name: 'closeConversation',
-    value: {
-      actionType: 'TRANSFER',
-      skill: 'agent-after-ms-bot'
+    type: 'message',
+    text: 'Зʼєдную вас з оператором. Зачекайте, будь ласка...',
+    channelData: {
+      action: {
+        name: 'TRANSFER',
+        parameters: {
+          skill: 'agent-after-ms-bot'
+        }
+      }
     }
   });
   
-  console.log('[TRANSFER] Conversation marked as transferred');
+  console.log('[TRANSFER] Transfer message sent with channelData');
 }
 
 // ── Обробник повідомлень ──────────────────────────────────────────────────────
@@ -79,7 +80,7 @@ async function handleTurn(context) {
   const activity = context.activity;
   const conversationId = activity.conversation?.id || 'default';
 
-  // ← НОВЕ: Якщо розмова передана — ігноруємо всі повідомлення
+  // Якщо розмова передана — ігноруємо всі повідомлення
   if (transferredConversations.has(conversationId)) {
     console.log(`[IGNORED] Message from transferred conversation: ${conversationId}`);
     return;
