@@ -6,6 +6,7 @@ const OpenAI = require('openai');
 // ── OpenAI ────────────────────────────────────────────────────────────────────
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const threads = new Map();
+const transferredConversations = new Set(); // ← НОВЕ: список переданих розмов
 
 async function askAssistant(conversationId, userMessage) {
   if (!threads.has(conversationId)) {
@@ -52,24 +53,37 @@ adapter.onTurnError = async (context, error) => {
 };
 
 // ── Transfer to Agent ─────────────────────────────────────────────────────────
-async function transferToAgent(context) {
+async function transferToAgent(context, conversationId) {
   console.log('[TRANSFER] Transferring to skill: agent-after-ms-bot');
   
-  // Надсилаємо спеціальний event для LivePerson
+  // Позначаємо розмову як передану
+  transferredConversations.add(conversationId);
+  
+  await context.sendActivity('Зʼєдную вас з оператором. Зачекайте, будь ласка...');
+  
+  // Надсилаємо event трансферу
   await context.sendActivity({
     type: 'event',
-    name: 'Transfer',
+    name: 'closeConversation',
     value: {
+      actionType: 'TRANSFER',
       skill: 'agent-after-ms-bot'
     }
   });
-
-  await context.sendActivity('Зʼєдную вас з оператором. Зачекайте, будь ласка...');
+  
+  console.log('[TRANSFER] Conversation marked as transferred');
 }
 
 // ── Обробник повідомлень ──────────────────────────────────────────────────────
 async function handleTurn(context) {
   const activity = context.activity;
+  const conversationId = activity.conversation?.id || 'default';
+
+  // ← НОВЕ: Якщо розмова передана — ігноруємо всі повідомлення
+  if (transferredConversations.has(conversationId)) {
+    console.log(`[IGNORED] Message from transferred conversation: ${conversationId}`);
+    return;
+  }
 
   // Старт розмови
   if (
@@ -88,7 +102,6 @@ async function handleTurn(context) {
     const userText = activity.text?.trim();
     if (!userText) return;
 
-    const conversationId = activity.conversation?.id || 'default';
     console.log(`[MSG] conv=${conversationId} text="${userText}"`);
 
     // Перевіряємо чи це команда на трансфер
@@ -100,7 +113,7 @@ async function handleTurn(context) {
       lowerText === 'live agent' ||
       lowerText === 'human'
     ) {
-      await transferToAgent(context);
+      await transferToAgent(context, conversationId);
       return;
     }
 
