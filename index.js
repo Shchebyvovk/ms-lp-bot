@@ -49,22 +49,30 @@ const adapter = new BotFrameworkAdapter({
 
 adapter.onTurnError = async (context, error) => {
   console.error('[onTurnError]', error);
-  await context.sendActivity('Вибачте, сталася помилка.');
+  await context.sendActivity('Sorry, an error occurred. Please try again.');
 };
 
 // ── Transfer to Agent ─────────────────────────────────────────────────────────
 async function transferToAgent(context, conversationId) {
-  console.log('[TRANSFER] Initiating escalation to skill ID: 10109514655');
+  console.log('[TRANSFER] Initiating transfer to skill: agent-after-ms-bot');
   
   transferredConversations.add(conversationId);
   
-  // Спочатку текстове повідомлення
-  await context.sendActivity('Зʼєдную вас з оператором. Зачекайте, будь ласка...');
+  // Message for customer (English)
+  await context.sendActivity('Connecting you to an agent. Please wait...');
   
-  // Формат 1: message з action в channelData
+  // Welcome message for agent
   await context.sendActivity({
     type: 'message',
-    text: '',
+    text: '👋 A customer has requested to speak with an agent. Feel free to take over the conversation.',
+    channelData: {
+      messageAudience: 'AGENTS_AND_MANAGERS'
+    }
+  });
+  
+  // Transfer action
+  await context.sendActivity({
+    type: 'message',
     channelData: {
       action: {
         name: 'TRANSFER',
@@ -75,76 +83,48 @@ async function transferToAgent(context, conversationId) {
     }
   });
   
-  // Формат 2: event handoff.initiate
-  await context.sendActivity({
-    type: 'event',
-    name: 'handoff.initiate',
-    value: {
-      skill: 'agent-after-ms-bot',
-      context: {
-        message: 'User requested human agent'
-      }
-    }
-  });
-  
-  // Формат 3: з skillId
-  await context.sendActivity({
-    type: 'message',
-    channelData: {
-      metadata: [
-        {
-          type: 'ActionReason',
-          reason: 'escalate'
-        },
-        {
-          type: 'SkillId',
-          skillId: '10109514655'
-        }
-      ]
-    }
-  });
-  
-  console.log('[TRANSFER] All escalation formats sent');
+  console.log('[TRANSFER] Transfer initiated with agent greeting');
 }
 
-// ── Обробник повідомлень ──────────────────────────────────────────────────────
+// ── Message Handler ───────────────────────────────────────────────────────────
 async function handleTurn(context) {
   const activity = context.activity;
   const conversationId = activity.conversation?.id || 'default';
 
-  // Якщо розмова передана — ігноруємо
+  // Ignore transferred conversations
   if (transferredConversations.has(conversationId)) {
     console.log(`[IGNORED] Transferred conversation: ${conversationId}`);
     return;
   }
 
-  // Старт розмови
+  // Conversation start
   if (
     activity.type === ActivityTypes.Event &&
     activity.name === 'CONVERSATION_START'
   ) {
     await context.sendActivity(
-      'Привіт! Я віртуальний асистент. Чим можу допомогти?\n\n' +
-      'Якщо потрібен оператор, напишіть: **оператор**'
+      'Hello! I am a virtual assistant. How can I help you?\n\n' +
+      'If you need to speak with an agent, type: **agent**'
     );
     return;
   }
 
-  // Звичайне повідомлення
+  // Regular message
   if (activity.type === ActivityTypes.Message) {
     const userText = activity.text?.trim();
     if (!userText) return;
 
     console.log(`[MSG] conv=${conversationId} text="${userText}"`);
 
-    // Команда трансферу
+    // Transfer command
     const lowerText = userText.toLowerCase();
     if (
-      lowerText === 'оператор' ||
-      lowerText === 'агент' ||
-      lowerText === 'людина' ||
+      lowerText === 'agent' ||
+      lowerText === 'operator' ||
+      lowerText === 'human' ||
       lowerText === 'live agent' ||
-      lowerText === 'human'
+      lowerText === 'help' ||
+      lowerText === 'support'
     ) {
       await transferToAgent(context, conversationId);
       return;
@@ -156,12 +136,12 @@ async function handleTurn(context) {
     if (reply) {
       await context.sendActivity(reply);
     } else {
-      await context.sendActivity('Вибачте, не зміг сформувати відповідь. Спробуйте ще раз.');
+      await context.sendActivity('Sorry, I could not generate a response. Please try again.');
     }
   }
 }
 
-// ── HTTP сервер ───────────────────────────────────────────────────────────────
+// ── HTTP Server ───────────────────────────────────────────────────────────────
 const server = restify.createServer({ name: 'LP-Bot' });
 server.use(restify.plugins.bodyParser());
 
