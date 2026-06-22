@@ -3,6 +3,12 @@ const restify = require('restify');
 const { BotFrameworkAdapter, ActivityTypes } = require('botbuilder');
 const OpenAI = require('openai');
 
+// ── Bot Configuration ─────────────────────────────────────────────────────────
+const BOT_NAME = process.env.BOT_NAME || 'AskLouis';
+const BOT_VERSION = process.env.BOT_VERSION || '1.0.0';
+
+console.log(`🤖 Bot: ${BOT_NAME} v${BOT_VERSION}`);
+
 // ── OpenAI ────────────────────────────────────────────────────────────────────
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const threads = new Map();
@@ -102,10 +108,12 @@ async function handleTurn(context) {
     activity.type === ActivityTypes.Event &&
     activity.name === 'CONVERSATION_START'
   ) {
-    await context.sendActivity(
-      'Hello! I am a virtual assistant. How can I help you?\n\n' +
-      'If you need to speak with an agent, type: **agent**'
-    );
+    const welcomeMessage = 
+      `Hello! I am **${BOT_NAME}** (v${BOT_VERSION}), a virtual assistant. How can I help you?\n\n` +
+      'If you need to speak with an agent, type: **agent**';
+    
+    await context.sendActivity(welcomeMessage);
+    console.log(`[CONVERSATION_START] ${BOT_NAME} v${BOT_VERSION} greeting sent`);
     return;
   }
 
