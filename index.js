@@ -5,7 +5,7 @@ const OpenAI = require('openai');
 
 // ── Bot Configuration ─────────────────────────────────────────────────────────
 const BOT_NAME = process.env.BOT_NAME || 'AskLouis';
-const BOT_VERSION = process.env.BOT_VERSION || '1.0.0';
+const BOT_VERSION = process.env.BOT_VERSION || '1.0.1';
 
 console.log(`🤖 Bot: ${BOT_NAME} v${BOT_VERSION}`);
 
