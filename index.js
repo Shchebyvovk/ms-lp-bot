@@ -130,10 +130,17 @@ async function handleTurn(context) {
       return;
     }
 
-    // ✅ SHOW TYPING INDICATOR
+    // ✅ SHOW TYPING INDICATOR (LP Direct Line format)
     console.log('[TYPING] Showing typing indicator...');
     await context.sendActivity({
-      type: ActivityTypes.Typing
+      type: 'message',
+      text: '',
+      channelData: {
+        delay: {
+          delay: 1,      // 1 second delay
+          typing: true   // show "bot is typing..."
+        }
+      }
     });
 
     // OpenAI Assistant
