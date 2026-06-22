@@ -130,11 +130,18 @@ async function handleTurn(context) {
       return;
     }
 
+    // ✅ SHOW TYPING INDICATOR
+    console.log('[TYPING] Showing typing indicator...');
+    await context.sendActivity({
+      type: ActivityTypes.Typing
+    });
+
     // OpenAI Assistant
     const reply = await askAssistant(conversationId, userText);
     
     if (reply) {
       await context.sendActivity(reply);
+      console.log('[REPLY] Message sent to user');
     } else {
       await context.sendActivity('Sorry, I could not generate a response. Please try again.');
     }
