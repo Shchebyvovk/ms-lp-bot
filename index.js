@@ -13,6 +13,7 @@ console.log(`🤖 Bot: ${BOT_NAME} v${BOT_VERSION}`);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const threads = new Map();
 const transferredConversations = new Set();
+const welcomedConversations = new Set(); // Track which convs got welcome
 
 async function askAssistant(conversationId, userMessage) {
   if (!threads.has(conversationId)) {
@@ -126,6 +127,18 @@ async function handleTurn(context) {
     if (!userText) return;
 
     console.log(`[MSG] conv=${conversationId} text="${userText}"`);
+
+    // ✅ SEND WELCOME ON FIRST MESSAGE (since LP doesn't send CONVERSATION_START)
+    if (!welcomedConversations.has(conversationId)) {
+      welcomedConversations.add(conversationId);
+      const welcomeMessage = 
+        `Hello! I am **${BOT_NAME}** (v${BOT_VERSION}), a virtual assistant. How can I help you?\n\n` +
+        'If you need to speak with an agent, type: **agent**';
+      
+      await context.sendActivity(welcomeMessage);
+      console.log(`[WELCOME] ${BOT_NAME} v${BOT_VERSION} greeting sent for conv ${conversationId}`);
+      return; // Don't process this first message as a query
+    }
 
     // Transfer command
     const lowerText = userText.toLowerCase();
