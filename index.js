@@ -97,6 +97,9 @@ async function handleTurn(context) {
   const activity = context.activity;
   const conversationId = activity.conversation?.id || 'default';
 
+  // 🔍 LOG ALL ACTIVITIES (for debugging)
+  console.log(`[ACTIVITY] type=${activity.type}, name=${activity.name}, text="${activity.text}"`);
+
   // Ignore transferred conversations
   if (transferredConversations.has(conversationId)) {
     console.log(`[IGNORED] Transferred conversation: ${conversationId}`);
