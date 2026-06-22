@@ -161,8 +161,8 @@ async function handleTurn(context) {
       text: '',
       channelData: {
         delay: {
-          delay: 1,      // 1 second delay
-          typing: true   // show "bot is typing..."
+          delay: 3,      // 3 seconds - wait for OpenAI to process
+          typing: true   // show "agent is typing..."
         }
       }
     });
